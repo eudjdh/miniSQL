@@ -70,13 +70,17 @@ value       :   SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
             |   NUMBER
             ;
 
-select_sql  :   KW_SELECT STAR KW_FROM IDENTIFIER where_clause ';'                              {printf("识别到select语句\n");}
-            |   KW_SELECT columns KW_FROM IDENTIFIER where_clause ';'                           {printf("识别到select语句\n");}
+select_sql  :   KW_SELECT STAR KW_FROM tables where_clause ';'                                  {printf("识别到select语句\n");}
+            |   KW_SELECT columns KW_FROM tables where_clause ';'                               {printf("识别到select语句\n");}
             ;
 
 delete_sql  :   KW_DELETE KW_FROM IDENTIFIER where_clause ';'                                   {printf("识别到delete语句\n");};
 
 update_sql  :   KW_UPDATE IDENTIFIER KW_SET results where_clause ';'                            {printf("识别到update语句\n");};
+
+tables      :   IDENTIFIER
+            |   tables ',' IDENTIFIER
+            ;
 
 results     :   result
             |   results ',' result
