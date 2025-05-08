@@ -9,6 +9,7 @@
     struct create_struct *create_var;           // create语句的值
     struct create_table_entries *entries_var;   // create table的列链表
     struct use_struct *use_var;                 // use语句的值
+    struct show_struct *show_var;               // show语句的值
 }
 
 %token <str_val> IDENTIFIER NUMBER 
@@ -16,6 +17,7 @@
 %type <create_var> create_sql
 %type <entries_var> entries entry
 %type <use_var> use_sql
+%type <show_var> show_sql
 
 %token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
@@ -50,12 +52,38 @@ statement   :   create_sql
                         result = create_table($1);
                         if(result == 1)
                             printf("创建表成功\n");
+                        else if(result == 2)
+                            printf("该表已存在\n");
+                        else if(result == 3)
+                            printf("请进入数据库后创建表\n");
                         else
                             printf("创建表失败\n");
                     }
                     free_create_struct($1);
                 }
             |   show_sql
+                {
+                    int result;
+                    if($1->object_type == DATABASE){
+                        result = show_database($1);
+                        if(result == 1)
+                            printf("数据库全部打印完毕\n");
+                        else if(result == 2)
+                            printf("请退回到/home/tom/Documents/compiling/miniSQL/database目录查询数据库\n");
+                        else
+                            printf("查询数据库失败\n");
+                    }
+                    else if($1->object_type == TABLE){
+                        result = show_table($1);
+                        if(result == 1)
+                            printf("表全部打印完毕\n");
+                        else if(result == 2)
+                            printf("请进入数据库后查询表\n");
+                        else
+                            printf("查询表失败\n");
+                    }
+                    free_show_struct($1);
+                }
             |   use_sql
                 {
                     int result;
@@ -73,7 +101,16 @@ statement   :   create_sql
             |   select_sql
             |   delete_sql
             |   update_sql
-            |   _exit
+            |   EXIT
+                {
+                    if(strcmp(pwd, "database") == 0){
+                        printf("退出miniSQL\n");
+                        return 0;
+                    }
+                    else{
+                        strncpy(pwd, "database", 9);
+                    }
+                }
             ;
 
 create_sql  :   KW_CREATE KW_DATABASE IDENTIFIER ';'
@@ -98,9 +135,8 @@ entries     :   entry
                 }
             |   entries ',' entry
                 {
-                    if($1 == NULL){
+                    if($1 == NULL)
                         $$ = $3;
-                    }
                     else{
                         struct create_table_entries *last = $1;
                         while(last->next_entry != NULL)
@@ -108,7 +144,6 @@ entries     :   entry
                         last->next_entry = $3;
                         $$ = $1;
                     }
-                    
                 }
             ;
 
@@ -130,8 +165,16 @@ entry       :   IDENTIFIER KW_CHAR '(' NUMBER ')'
                 }
             ;
 
-show_sql    :   KW_SHOW KW_DATABASES ';'                                                        {printf("识别到show databases语句\n");}
-            |   KW_SHOW KW_TABLES ';'                                                           {printf("识别到show tables语句\n");}
+show_sql    :   KW_SHOW KW_DATABASES ';'
+                {
+                    $$ = (struct show_struct*)malloc(sizeof(struct show_struct));
+                    $$->object_type = DATABASE;
+                }
+            |   KW_SHOW KW_TABLES ';'
+                {
+                    $$ = (struct show_struct*)malloc(sizeof(struct show_struct));
+                    $$->object_type = TABLE;
+                }
             ;
 
 use_sql     :   KW_USE KW_DATABASE IDENTIFIER ';'
@@ -227,8 +270,6 @@ condition   :   IDENTIFIER '=' NUMBER
             |   IDENTIFIER LESS_OR_EQUAL NUMBER
             |   IDENTIFIER GREATER_OR_EQUAL NUMBER
             ;
-
-_exit       :   EXIT                                                                            {printf("识别到exit语句\n");return 0;};
 
 %%
 
