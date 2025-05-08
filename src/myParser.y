@@ -10,6 +10,7 @@
     struct create_table_entries *entries_var;   // create table的列链表
     struct use_struct *use_var;                 // use语句的值
     struct show_struct *show_var;               // show语句的值
+    struct drop_struct *drop_var;               // drop语句的值
 }
 
 %token <str_val> IDENTIFIER NUMBER 
@@ -18,6 +19,7 @@
 %type <entries_var> entries entry
 %type <use_var> use_sql
 %type <show_var> show_sql
+%type <drop_var> drop_sql
 
 %token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
@@ -40,9 +42,9 @@ statement   :   create_sql
                     if($1->object_type == DATABASE){
                         result = create_database($1);
                         if(result == 1)
-                            printf("创建数据库成功\n");
+                            printf("创建数据库%s成功\n", $1->name);
                         else if(result == 2)
-                            printf("该数据库已存在\n");
+                            printf("数据库%s已存在\n", $1->name);
                         else if(result == 3)
                             printf("请退回到/home/tom/Documents/compiling/miniSQL/database目录创建数据库\n");
                         else
@@ -51,9 +53,9 @@ statement   :   create_sql
                     else if($1->object_type == TABLE){
                         result = create_table($1);
                         if(result == 1)
-                            printf("创建表成功\n");
+                            printf("创建表%s成功\n", $1->name);
                         else if(result == 2)
-                            printf("该表已存在\n");
+                            printf("表%s已存在\n", $1->name);
                         else if(result == 3)
                             printf("请进入数据库后创建表\n");
                         else
@@ -97,6 +99,32 @@ statement   :   create_sql
                     free_use_struct($1);
                 }
             |   drop_sql
+                {
+                    int result;
+                    if($1->object_type == DATABASE){
+                        result = drop_database($1);
+                        if(result == 1)
+                            printf("删除数据库%s成功\n", $1->name);
+                        else if(result == 2)
+                            printf("数据库%s不存在\n", $1->name);
+                        else if(result == 3)
+                            printf("请退回至/home/tom/Documents/compiling/miniSQL/database目录删除数据库\n");
+                        else
+                            printf("删除数据库失败\n");
+                    }
+                    else if($1->object_type == TABLE){
+                        result = drop_table($1);
+                        if(result == 1)
+                            printf("删除表%s成功\n", $1->name);
+                        else if(result == 2)
+                            printf("表%s不存在\n", $1->name);
+                        else if(result == 3)
+                            printf("请进入数据库删除表\n");
+                        else
+                            printf("删除表失败\n");
+                    }
+                    free_drop_struct($1);
+                }
             |   insert_sql
             |   select_sql
             |   delete_sql
@@ -183,8 +211,18 @@ use_sql     :   KW_USE KW_DATABASE IDENTIFIER ';'
                     $$->db_name = strdup($3);
                 }
 
-drop_sql    :   KW_DROP KW_DATABASE IDENTIFIER ';'                                              {printf("识别到drop database语句\n");}
-            |   KW_DROP KW_TABLE IDENTIFIER ';'                                                 {printf("识别到drop table语句\n");}
+drop_sql    :   KW_DROP KW_DATABASE IDENTIFIER ';'
+                {
+                    $$ = (struct drop_struct*)malloc(sizeof(struct drop_struct));
+                    $$->name = strdup($3);
+                    $$->object_type = DATABASE;
+                }
+            |   KW_DROP KW_TABLE IDENTIFIER ';'
+                {
+                    $$ = (struct drop_struct*)malloc(sizeof(struct drop_struct));
+                    $$->name = strdup($3);
+                    $$->object_type = TABLE;
+                }
             ;
 
 insert_sql  :   KW_INSERT KW_INTO IDENTIFIER '(' columns ')' KW_VALUES '(' values ')' ';'       {printf("识别到insert语句\n");}

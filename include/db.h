@@ -6,6 +6,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
 
 enum OBJTYPE{DATABASE, TABLE};
 enum DATATYPE{INT, CHAR};
@@ -33,6 +35,12 @@ struct show_struct{
     enum OBJTYPE object_type;
 };
 
+// drop语句相关结构体
+struct drop_struct{
+    char *name;
+    enum OBJTYPE object_type;
+};
+
 extern char pwd[256];
 
 int create_database(struct create_struct *cr_var);
@@ -46,5 +54,10 @@ void free_use_struct(struct use_struct *use_var);
 int show_database(struct show_struct *show_var);
 int show_table(struct show_struct *show_var);
 void free_show_struct(struct show_struct *show_var);
+
+int drop_database(struct drop_struct* drop_var);
+int drop_table(struct drop_struct* drop_var);
+int remove_dir(const char *dir_path);
+void free_drop_struct(struct drop_struct* drop_var);
 
 #endif

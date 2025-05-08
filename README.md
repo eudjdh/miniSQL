@@ -21,10 +21,10 @@ database/
 - [x] create数据库
 - [x] use数据库
 - [x] create表格
-- [ ] drop数据库
-- [ ] drop表格
+- [x] drop数据库
+- [x] drop表格
 - [x] show数据库
-- [ ] show表格
+- [x] show表格
 - [ ] insert数据
 - [ ] update数据
 - [ ] delete数据
@@ -41,6 +41,8 @@ conditions  :   conditions KW_AND conditions
 通过询问**Deepseek**工具进行修改，得到**src/myParser.y**文件中标记的代码块，并受到**添加非终结符**的启发，自己对文法进行了一定的修改，亦在文件中有标记。此外，还询问了**Deepseek**两种文法的区别，并记录在了两个代码块下方。
 #### ✅具体值无法传给终结符
 需要在.l文件中强制赋值给终结符，并在.y文件中进行属性绑定
+#### ✅C语言中无法直接删除文件行
+需要逐行扫描原文件并复制到新文件中，其中跳过需要删除的行。原因是C语言读取文件按照字节流的方式读取，若删除特定行，需将后面部分向前移动若干字节，危险且麻烦
 ### 测试
 #### 工具与环境
 Linux平台 Flex Bison gcc Makefile
