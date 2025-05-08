@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+// create语句相关结构体
 enum OBJTYPE{DATABASE, TABLE};
 enum DATATYPE{INT, CHAR};
 struct create_table_entries{
@@ -21,11 +22,19 @@ struct create_struct{
     struct create_table_entries *entries_list;  // 列链表
 };
 
+// use语句相关结构体
+struct use_struct{
+    char *db_name;
+};
+
 extern char pwd[256];
 
 int create_database(struct create_struct *cr_var);
 int create_table(struct create_struct *cr_var);
 void free_create_struct(struct create_struct *cr_var);
 void free_create_entries(struct create_table_entries* entries_list);
+
+int use_database(struct use_struct *use_var);
+void free_use_struct(struct use_struct *use_var);
 
 #endif

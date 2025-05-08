@@ -8,12 +8,14 @@
     char *str_val;                              // 字符串值，数字和标识符都以字符串存储操作，仅有设计比较时才会转换为数字
     struct create_struct *create_var;           // create语句的值
     struct create_table_entries *entries_var;   // create table的列链表
+    struct use_struct *use_var;                 // use语句的值
 }
 
 %token <str_val> IDENTIFIER NUMBER 
 
 %type <create_var> create_sql
 %type <entries_var> entries entry
+%type <use_var> use_sql
 
 %token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
@@ -55,6 +57,17 @@ statement   :   create_sql
                 }
             |   show_sql
             |   use_sql
+                {
+                    int result;
+                    result = use_database($1);
+                    if(result == 1)
+                        printf("已切换到数据库%s\n", $1->db_name);
+                    else if(result == 2)
+                        printf("数据库%s不存在\n", $1->db_name);
+                    else
+                        printf("切换数据库失败\n");
+                    free_use_struct($1);
+                }
             |   drop_sql
             |   insert_sql
             |   select_sql
@@ -123,7 +136,8 @@ show_sql    :   KW_SHOW KW_DATABASES ';'                                        
 
 use_sql     :   KW_USE KW_DATABASE IDENTIFIER ';'
                 {
-                    
+                    $$ = (struct use_struct*)malloc(sizeof(struct use_struct));
+                    $$->db_name = strdup($3);
                 }
 
 drop_sql    :   KW_DROP KW_DATABASE IDENTIFIER ';'                                              {printf("识别到drop database语句\n");}

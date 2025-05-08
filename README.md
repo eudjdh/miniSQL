@@ -15,6 +15,20 @@ database/
             └── example_tb3.txt
 ```
 其中每个数据库的sys.bat文件中的每一行存储形如`example_tb1 1 example_col1 int`和`example_tb1 2 example_col2 char 20`的元数据，即`表名 自增的元数据序号 列名 数据类型 长度(仅char类型有)`
+### 工作进度
+- [x] 词法分析
+- [x] 语法分析
+- [x] create数据库
+- [x] use数据库
+- [ ] create表格
+- [ ] drop数据库
+- [ ] drop表格
+- [ ] show数据库
+- [ ] show表格
+- [ ] insert数据
+- [ ] update数据
+- [ ] delete数据
+- [ ] select数据
 ### 问题记录
 #### ✅文法规则出现移位/归约冲突问题  
 文法规则编写过程中关于`select`等语句中的`where`条件语句出现过`shift/reduce conflict`问题，原因是在`conditions`文法规则中出现  
@@ -33,5 +47,3 @@ Linux平台 Flex Bison gcc Makefile
 make run  
 #### 特！别！说！明！
 **请严格按照`test_data.txt`文件中的SQL语法格式构造测试用例**  
-~~目前仅实现词法文法的识别，后期会根据实际实验情况继续完善~~
-目前完成了数据库创建的语法制导翻译以及实际文件操作

@@ -1,19 +1,18 @@
 #include "db.h"
 
 const char *root_path = "/home/tom/Documents/compiling/miniSQL/";
+const char *db_sysdat_path = "/home/tom/Documents/compiling/miniSQL/database/sys.dat";
 char pwd[256] = "database";
 
+/*****************************create******************************************/
 int create_database(struct create_struct *cr_var){
     if(strcmp(pwd, "database") != 0)
         return 3;
     
-    FILE *fp;
-    char sysdat_path[512];
     char newdir_path[512];
     char line[256];
 
-    snprintf(sysdat_path, sizeof(sysdat_path), "%s%s/sys.dat", root_path, pwd);
-    fp = fopen(sysdat_path, "a+");
+    FILE *fp = fopen(db_sysdat_path, "a+");
     if (!fp) {
         perror("sys.dat");
         return -1;
@@ -35,7 +34,7 @@ int create_database(struct create_struct *cr_var){
     // 创建该库的目录
     snprintf(newdir_path, sizeof(newdir_path), "%s%s/%s", root_path, pwd, cr_var->name);
     if(mkdir(newdir_path, 0755) != 0){
-        perror("创建目录失败");
+        perror("创建数据库目录失败");
     }
     return 1;
 }
@@ -58,4 +57,32 @@ void free_create_entries(struct create_table_entries* entries_list){
         free(entries_list);
         entries_list = next;
     }
+}
+/*****************************************************************************/
+
+/*********************************use*****************************************/
+int use_database(struct use_struct *use_var){
+    FILE *fp = fopen(db_sysdat_path, "r");
+    char line[256];
+    if (!fp) {
+        perror("sys.dat");
+        return -1;
+    }
+    // 逐行扫描sys.dat是否有同名数据库，若有则改变pwd，并返回1
+    rewind(fp);
+    while (fgets(line, sizeof(line), fp)) {
+        char *nl = strchr(line, '\n');
+        if (nl) *nl = '\0';
+        if (strcmp(line, use_var->db_name) == 0) {
+            snprintf(pwd, sizeof(pwd), "database/%s", use_var->db_name);
+            return 1;
+        }
+    }
+    return 2;
+}
+
+void free_use_struct(struct use_struct *use_var){
+    if(!use_var)    return;
+    if(use_var->db_name)    free(use_var->db_name);
+    free(use_var);
 }
