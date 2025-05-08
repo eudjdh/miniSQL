@@ -16,7 +16,7 @@ database/
 ```
 其中每个数据库的sys.bat文件中的每一行存储形如`example_tb1 1 example_col1 int`和`example_tb1 2 example_col2 char 20`的元数据，即`表名 自增的元数据序号 列名 数据类型 长度(仅char类型有)`
 ### 问题记录
-#### 文法规则出现移位/归约冲突问题
+#### ✅文法规则出现移位/归约冲突问题  
 文法规则编写过程中关于`select`等语句中的`where`条件语句出现过`shift/reduce conflict`问题，原因是在`conditions`文法规则中出现  
 ```
 conditions  :   conditions KW_AND conditions
@@ -24,7 +24,7 @@ conditions  :   conditions KW_AND conditions
             ;
 ```
 通过询问**Deepseek**工具进行修改，得到**src/myParser.y**文件中标记的代码块，并受到**添加非终结符**的启发，自己对文法进行了一定的修改，亦在文件中有标记。此外，还询问了**Deepseek**两种文法的区别，并记录在了两个代码块下方。
-#### 具体值无法传给终结符
+#### ✅具体值无法传给终结符
 需要在.l文件中强制赋值给终结符，并在.y文件中进行属性绑定
 ### 测试
 #### 工具与环境
