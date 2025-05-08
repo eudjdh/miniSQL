@@ -1,12 +1,21 @@
 %{
-    #include <stdlib.h>
-    #include <stdio.h>
+    #include "db.h"
     extern int yylex(void);
     extern void yyerror(const char *s);
-    extern int yywrap(void);
 %}
 
-%token IDENTIFIER NUMBER NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL
+%union{
+    char *str_val;                              // 字符串值，数字和标识符都以字符串存储操作，仅有设计比较时才会转换为数字
+    struct create_struct *create_var;           // create语句的值
+    struct create_table_entries *entries_var;   // create table的列链表
+}
+
+%token <str_val> IDENTIFIER NUMBER 
+
+%type <create_var> create_sql
+%type <entries_var> entries entry
+
+%token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
 %token KW_SHOW KW_TABLES KW_USE KW_DROP KW_INSERT KW_INTO KW_VALUES KW_SELECT
 %token KW_FROM KW_WHERE KW_AND KW_OR KW_DELETE KW_UPDATE KW_SET EXIT UNKNOWN
@@ -17,44 +26,111 @@
 
 %%
 
-statements  :   statement                                                                       {printf("SQL>");}
-            |   statements statement                                                            {printf("SQL>");}
+statements  :   statement                                                                       {printf("%s>", pwd);}
+            |   statements statement                                                            {printf("%s>", pwd);}
             ;
 
-statement   :   create_sql                          
+statement   :   create_sql
+                {
+                    int result;
+                    if($1->object_type == DATABASE){
+                        result = create_database($1);
+                        if(result == 1)
+                            printf("创建数据库成功\n");
+                        else if(result == 2)
+                            printf("该数据库已存在\n");
+                        else if(result == 3)
+                            printf("请退回到/home/tom/Documents/compiling/miniSQL/database目录创建数据库\n");
+                        else
+                            printf("创建数据库失败\n");
+                    }
+                    else if($1->object_type == TABLE){
+                        result = create_table($1);
+                        if(result == 1)
+                            printf("创建表成功\n");
+                        else
+                            printf("创建表失败\n");
+                    }
+                    free_create_struct($1);
+                }
             |   show_sql
             |   use_sql
             |   drop_sql
-            |   inser_sql
+            |   insert_sql
             |   select_sql
             |   delete_sql
             |   update_sql
             |   _exit
             ;
 
-create_sql  :   KW_CREATE KW_DATABASE IDENTIFIER ';'                                            {printf("识别到create database语句\n");}
-            |   KW_CREATE KW_TABLE IDENTIFIER '(' entries ')' ';'                               {printf("识别到create table语句\n");}
+create_sql  :   KW_CREATE KW_DATABASE IDENTIFIER ';'
+                {
+                    $$ = (struct create_struct*)malloc(sizeof(struct create_struct));
+                    $$->object_type = DATABASE;
+                    $$->name = strdup($3);
+                    $$->entries_list = NULL;
+                }
+            |   KW_CREATE KW_TABLE IDENTIFIER '(' entries ')' ';'                               
+                {
+                    $$ = (struct create_struct*)malloc(sizeof(struct create_struct));
+                    $$->object_type = TABLE;
+                    $$->name = strdup($3);
+                    $$->entries_list = $5;
+                }
             ; 
 
 entries     :   entry
+                {
+                    $$ = $1;
+                }
             |   entries ',' entry
+                {
+                    if($1 == NULL){
+                        $$ = $3;
+                    }
+                    else{
+                        struct create_table_entries *last = $1;
+                        while(last->next_entry != NULL)
+                            last = last->next_entry;
+                        last->next_entry = $3;
+                        $$ = $1;
+                    }
+                    
+                }
             ;
 
 entry       :   IDENTIFIER KW_CHAR '(' NUMBER ')'
+                {
+                    $$ = (struct create_table_entries*)malloc(sizeof(struct create_table_entries));
+                    $$->entry_name = strdup($1);
+                    $$->entry_type = CHAR;
+                    $$->length = atoi($4);
+                    $$->next_entry = NULL;
+                }
             |   IDENTIFIER KW_INT
+                {
+                    $$ = (struct create_table_entries*)malloc(sizeof(struct create_table_entries));
+                    $$->entry_name = strdup($1);
+                    $$->entry_type = INT;
+                    $$->length = 0;
+                    $$->next_entry = NULL;
+                }
             ;
 
 show_sql    :   KW_SHOW KW_DATABASES ';'                                                        {printf("识别到show databases语句\n");}
             |   KW_SHOW KW_TABLES ';'                                                           {printf("识别到show tables语句\n");}
             ;
 
-use_sql     :   KW_USE KW_DATABASE IDENTIFIER ';'                                               {printf("识别到use database语句\n");}
+use_sql     :   KW_USE KW_DATABASE IDENTIFIER ';'
+                {
+                    
+                }
 
 drop_sql    :   KW_DROP KW_DATABASE IDENTIFIER ';'                                              {printf("识别到drop database语句\n");}
             |   KW_DROP KW_TABLE IDENTIFIER ';'                                                 {printf("识别到drop table语句\n");}
             ;
 
-inser_sql   :   KW_INSERT KW_INTO IDENTIFIER '(' columns ')' KW_VALUES '(' values ')' ';'       {printf("识别到insert语句\n");}
+insert_sql  :   KW_INSERT KW_INTO IDENTIFIER '(' columns ')' KW_VALUES '(' values ')' ';'       {printf("识别到insert语句\n");}
             |   KW_INSERT KW_INTO IDENTIFIER KW_VALUES '(' values ')' ';'                       {printf("识别到insert语句\n");}
             ;
 
@@ -143,8 +219,7 @@ _exit       :   EXIT                                                            
 %%
 
 int main(){
-    printf("SQL>");
-    fflush(stdout);
+    printf("%s>", pwd);
     yyparse();
     return 0;
 }
