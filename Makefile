@@ -7,7 +7,7 @@ INCLUDEDIR	:= include  # 新增头文件目录变量
 LEX       	:= flex
 YACC      	:= bison
 CC        	:= gcc
-CFLAGS    	:= -Wall -I$(INCLUDEDIR) -I$(BUILDDIR)  # 添加头文件搜索路径
+CFLAGS    	:= -g -Wall -I$(INCLUDEDIR) -I$(BUILDDIR)  # 添加头文件搜索路径
 
 LEX_SRC   	:= $(SRCDIR)/myLexer.l
 YACC_SRC  	:= $(SRCDIR)/myParser.y

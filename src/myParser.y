@@ -11,6 +11,9 @@
     struct use_struct *use_var;                 // use语句的值
     struct show_struct *show_var;               // show语句的值
     struct drop_struct *drop_var;               // drop语句的值
+    struct insert_value *value_var;             // insert语句中的values
+    struct insert_column *column_var;           // insert语句中的columns
+    struct insert_struct *insert_var;           // insert语句的值
 }
 
 %token <str_val> IDENTIFIER NUMBER 
@@ -20,6 +23,9 @@
 %type <use_var> use_sql
 %type <show_var> show_sql
 %type <drop_var> drop_sql
+%type <value_var> values value
+%type <column_var> columns
+%type <insert_var> insert_sql
 
 %token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
@@ -126,6 +132,25 @@ statement   :   create_sql
                     free_drop_struct($1);
                 }
             |   insert_sql
+                {
+                    int result;
+                    result = insert_data($1);
+                    if(result == 1)
+                        printf("插入数据成功\n");
+                    else if(result == 2)
+                        printf("表%s不存在\n", $1->table_name);
+                    else if(result == 3)
+                        printf("请进入数据库进行插入操作\n");
+                    else if(result == 4)
+                        printf("数据类型不匹配\n");
+                    else if(result == 5)
+                        printf("CHAR类型数据超出最大长度\n");
+                    else if(result == 6)
+                        printf("列不存在\n");
+                    else
+                        printf("插入数据失败\n");
+                    free_insert_struct($1);
+                }
             |   select_sql
             |   delete_sql
             |   update_sql
@@ -163,7 +188,7 @@ entries     :   entry
                 }
             |   entries ',' entry
                 {
-                    if($1 == NULL)
+                    if(!$1)
                         $$ = $3;
                     else{
                         struct create_table_entries *last = $1;
@@ -225,20 +250,77 @@ drop_sql    :   KW_DROP KW_DATABASE IDENTIFIER ';'
                 }
             ;
 
-insert_sql  :   KW_INSERT KW_INTO IDENTIFIER '(' columns ')' KW_VALUES '(' values ')' ';'       {printf("识别到insert语句\n");}
-            |   KW_INSERT KW_INTO IDENTIFIER KW_VALUES '(' values ')' ';'                       {printf("识别到insert语句\n");}
+insert_sql  :   KW_INSERT KW_INTO IDENTIFIER '(' columns ')' KW_VALUES '(' values ')' ';'
+                {
+                    $$ = (struct insert_struct*)malloc(sizeof(struct insert_struct));
+                    $$->table_name = strdup($3);
+                    $$->columns = $5;
+                    $$->values = $9;
+                }
+            |   KW_INSERT KW_INTO IDENTIFIER KW_VALUES '(' values ')' ';'
+                {
+                    $$ = (struct insert_struct*)malloc(sizeof(struct insert_struct));
+                    $$->table_name = strdup($3);
+                    $$->columns = NULL;
+                    $$->values = $6;
+                }
             ;
 
 columns     :   IDENTIFIER
+                {
+                    $$ = (struct insert_column*)malloc(sizeof(struct insert_column));
+                    $$->name = strdup($1);
+                    $$->next_column = NULL;
+                }
             |   columns ',' IDENTIFIER
+                {
+                    struct insert_column *temp = (struct insert_column*)malloc(sizeof(struct insert_column));
+                    temp->name = strdup($3);
+                    temp->next_column = NULL;
+                    if(!$$)
+                        $$ = temp;
+                    else{
+                        struct insert_column *last = $1;
+                        while(last->next_column != NULL)
+                            last = last->next_column;
+                        last->next_column = temp;
+                        $$ = $1;
+                    }
+                }
             ;
 
 values      :   value
+                {
+                    $$ = $1;
+                }
             |   values ',' value
+                {
+                    if(!$1)
+                        $$ = $3;
+                    else{
+                        struct insert_value *last = $1;
+                        while(last->next_value != NULL)
+                            last = last->next_value;
+                        last->next_value = $3;
+                        $$ = $1;
+                    }
+                }
             ;
 
 value       :   SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
+                {
+                    $$ = (struct insert_value*)malloc(sizeof(struct insert_value));
+                    $$->value = strdup($2);
+                    $$->type = CHAR;
+                    $$->next_value = NULL;
+                }
             |   NUMBER
+                {
+                    $$ = (struct insert_value*)malloc(sizeof(struct insert_value));
+                    $$->value = strdup($1);
+                    $$->type = INT;
+                    $$->next_value = NULL;
+                }
             ;
 
 select_sql  :   KW_SELECT STAR KW_FROM tables where_clause ';'                                  {printf("识别到select语句\n");}

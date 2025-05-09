@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <assert.h>
 
 enum OBJTYPE{DATABASE, TABLE};
 enum DATATYPE{INT, CHAR};
@@ -41,6 +42,22 @@ struct drop_struct{
     enum OBJTYPE object_type;
 };
 
+// insert语句相关结构体
+struct insert_value{
+    char *value;                                // 基本数据的值
+    enum DATATYPE type;                         // 数据类型
+    struct insert_value* next_value;            // 下一个基本数据
+};
+struct insert_column{
+    char *name;
+    struct insert_column *next_column;
+};
+struct insert_struct{
+    char *table_name;                           // 待插入的表名
+    struct insert_column *columns;              // 列链表
+    struct insert_value *values;                // 值链表
+};
+
 extern char pwd[256];
 
 int create_database(struct create_struct *cr_var);
@@ -59,5 +76,8 @@ int drop_database(struct drop_struct* drop_var);
 int drop_table(struct drop_struct* drop_var);
 int remove_dir(const char *dir_path);
 void free_drop_struct(struct drop_struct* drop_var);
+
+int insert_data(struct insert_struct* insert_var);
+void free_insert_struct(struct insert_struct* insert_var);
 
 #endif

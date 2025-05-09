@@ -48,6 +48,8 @@ conditions  :   conditions KW_AND conditions
 Linux平台 Flex Bison gcc Makefile
 #### 命令
 make run  
+#### 约定
+- exit用法：当你处于某数据库下，键入exit命令退出至database主目录；当你处于database主目录，键入exit命令退出miniSQL  
+- 若插入时数据不全，系统会在空缺处记录'*'，表示数据为空
 #### 特！别！说！明！
 **请严格按照`test_data.txt`文件中的SQL语法格式构造测试用例**  
-exit用法：当你处于某数据库下，键入exit命令退出至database主目录；当你处于database主目录，键入exit命令退出miniSQL
