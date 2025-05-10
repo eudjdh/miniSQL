@@ -380,7 +380,7 @@ int insert_data(struct insert_struct *insert_var){
             struct tempdata *new_column = (struct tempdata*)malloc(sizeof(struct tempdata));
             new_column->value = NULL;
             new_column->index = atoi(tokens[0]);
-            new_column->column_name = tokens[1];
+            new_column->column_name = strdup(tokens[1]);
             if(strcmp(tokens[2], "int") == 0){
                 new_column->type = INT;
                 new_column->length = 0;
@@ -416,8 +416,81 @@ int insert_data(struct insert_struct *insert_var){
     if(insert_var->columns){                    
         // 指定列名
         // 将乱序的数据按照sys.dat文件中的顺序插入到.txt.文件中
-        // 检测列是否存在、插入数据类型是否匹配、char类型变量是否越界
-        return success;
+        // 检测列是否存在、插入数据类型是否匹配、char类型变量是否越界、插入数据数量和列数量是否匹配
+        struct tempdata *cur_tempdata = temp_data;
+        int have_column = 0;
+        // 先填有数据的列
+        while(cur_column && cur_value){
+            int result = strcmp(cur_column->name, cur_tempdata->column_name);
+            if(result == 0){
+                have_column = 1;
+                if(cur_tempdata->type == cur_value->type){
+                    if(cur_tempdata->type == CHAR){
+                        int data_length = strlen(cur_value->value);
+                        if(data_length > cur_tempdata->length){
+                            while(temp_data){   // 超长度
+                                struct tempdata *next = temp_data->next;
+                                if(temp_data->column_name)  free(temp_data->column_name);
+                                free(temp_data);
+                                temp_data = next;
+                            }
+                            return 5;
+                        }
+                        cur_tempdata->value = cur_value->value;
+                    }
+                    else
+                        cur_tempdata->value = cur_value->value;
+                }
+                else{   // 类型不匹配
+                    while(temp_data){
+                        struct tempdata *next = temp_data->next;
+                        if(temp_data->column_name)  free(temp_data->column_name);
+                        free(temp_data);
+                        temp_data = next;
+                    }
+                    return 4;
+                }
+                cur_column = cur_column->next_column;
+                cur_value = cur_value->next_value;
+                cur_tempdata = temp_data;
+                continue;
+            }
+            else
+                cur_tempdata = cur_tempdata->next;
+            if((!have_column) && (!cur_tempdata)){
+                while(temp_data){
+                    struct tempdata *next = temp_data->next;
+                    if(temp_data->column_name)  free(temp_data->column_name);
+                    free(temp_data);
+                    temp_data = next;
+                }
+                return 6;
+            }
+        }
+        if(cur_column || cur_value){
+            while(temp_data){
+                struct tempdata *next = temp_data->next;
+                if(temp_data->column_name)  free(temp_data->column_name);
+                free(temp_data);
+                temp_data = next;
+            }
+            return 7;
+        }
+        // 再填没有数据的列，统一填'*'
+        cur_tempdata = temp_data;
+        while(cur_tempdata){
+            if(!cur_tempdata->value)
+                cur_tempdata->value = padding;
+            cur_tempdata = cur_tempdata->next;
+        }
+        // 写入文件
+        cur_tempdata = temp_data;
+        while(cur_tempdata){
+            fprintf(datafile_fp, "%s", cur_tempdata->value);
+            if(cur_tempdata->next)  fprintf(datafile_fp, " ");
+            else    fprintf(datafile_fp, "\n");
+            cur_tempdata = cur_tempdata->next;
+        }
     }
     else{                                       
         // 不指定列名，按照sys.dat文件中的顺序进行插入
@@ -428,15 +501,29 @@ int insert_data(struct insert_struct *insert_var){
             if(cur_tempdata->type == cur_value->type){  // 查类型
                 if(cur_tempdata->type == CHAR){
                     int data_length = strlen(cur_value->value);
-                    if(data_length > cur_tempdata->length)  // 查长度
+                    if(data_length > cur_tempdata->length){     // 查长度
+                        while(temp_data){
+                            struct tempdata *next = temp_data->next;
+                            if(temp_data->column_name)  free(temp_data->column_name);
+                            free(temp_data);
+                            temp_data = next;
+                        }
                         return 5;
+                    }      
                     cur_tempdata->value = cur_value->value;
                 }
                 else
                     cur_tempdata->value = cur_value->value;
             }
-            else
+            else{
+                while(temp_data){
+                    struct tempdata *next = temp_data->next;
+                    if(temp_data->column_name)  free(temp_data->column_name);
+                    free(temp_data);
+                    temp_data = next;
+                }
                 return 4;
+            }
             cur_tempdata = cur_tempdata->next;
             cur_value = cur_value->next_value;
         }
@@ -448,7 +535,6 @@ int insert_data(struct insert_struct *insert_var){
         // 写入文件
         cur_tempdata = temp_data;
         while(cur_tempdata){
-            assert(cur_tempdata->value != NULL);
             fprintf(datafile_fp, "%s", cur_tempdata->value);
             if(cur_tempdata->next)  fprintf(datafile_fp, " ");
             else    fprintf(datafile_fp, "\n");
@@ -459,6 +545,7 @@ int insert_data(struct insert_struct *insert_var){
     fclose(datafile_fp);
     while(temp_data){
         struct tempdata *next = temp_data->next;
+        if(temp_data->column_name)  free(temp_data->column_name);
         free(temp_data);
         temp_data = next;
     }

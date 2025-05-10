@@ -147,6 +147,8 @@ statement   :   create_sql
                         printf("CHAR类型数据超出最大长度\n");
                     else if(result == 6)
                         printf("列不存在\n");
+                    else if(result == 7)
+                        printf("数据数量与列数量不匹配\n");
                     else
                         printf("插入数据失败\n");
                     free_insert_struct($1);

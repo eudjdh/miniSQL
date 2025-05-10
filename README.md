@@ -25,7 +25,7 @@ database/
 - [x] drop表格
 - [x] show数据库
 - [x] show表格
-- [ ] insert数据
+- [x] insert数据
 - [ ] update数据
 - [ ] delete数据
 - [ ] select数据
