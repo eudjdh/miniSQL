@@ -10,8 +10,13 @@
 #include <unistd.h>
 #include <assert.h>
 
-enum OBJTYPE{DATABASE, TABLE};
-enum DATATYPE{INT, CHAR};
+#define TRUE 1
+#define FALSE 0
+
+enum OBJTYPE    {DATABASE, TABLE};
+enum DATATYPE   {INT, CHAR};
+enum NODETYPE   {COMPARISON, COLUMN, VALUE};
+enum COMP_OP    {AND, OR, EQ, NOT_EQ, GREATER, LESS, GREATER_OR_EQ, LESS_OR_EQ};
 
 // create语句相关结构体
 struct create_table_entries{
@@ -58,26 +63,72 @@ struct insert_struct{
     struct insert_value *values;                // 值链表
 };
 
+// where子句的条件相关结构体
+struct cmpdata{
+    enum DATATYPE type;
+    union{
+        int num_val;
+        char *str_val;
+    };
+};
+struct condition{
+    struct condition *left;                     // 左部条件
+    struct condition *right;                    // 有部条件
+    enum NODETYPE type;                         // 结点类型：比较符、列、值
+    union {
+        char *column_name;
+        enum COMP_OP op;                        // 比较符号种类
+        struct cmpdata *data;
+    };
+};
+
+// delete语句相关结构体
+struct delete_struct{
+    char *table_name;
+    struct condition *conditions;
+};
+
+// 读取现有记录的结构体，用于where子句中的比较
+struct record{
+    char *column_name;
+    int index;
+    enum DATATYPE type;
+    union{
+        int num_val;
+        char *str_val;
+    };
+    struct record *next;
+};
+
 extern char pwd[256];
 
-int create_database(struct create_struct *cr_var);
-int create_table(struct create_struct *cr_var);
-void free_create_struct(struct create_struct *cr_var);
-void free_create_entries(struct create_table_entries* entries_list);
+int create_database(struct create_struct *);
+int create_table(struct create_struct *);
+void free_create_struct(struct create_struct *);
+void free_create_entries(struct create_table_entries* );
 
-int use_database(struct use_struct *use_var);
-void free_use_struct(struct use_struct *use_var);
+int use_database(struct use_struct *);
+void free_use_struct(struct use_struct *);
 
-int show_database(struct show_struct *show_var);
-int show_table(struct show_struct *show_var);
-void free_show_struct(struct show_struct *show_var);
+int show_database(struct show_struct *);
+int show_table(struct show_struct *);
+void free_show_struct(struct show_struct *);
 
-int drop_database(struct drop_struct* drop_var);
-int drop_table(struct drop_struct* drop_var);
-int remove_dir(const char *dir_path);
-void free_drop_struct(struct drop_struct* drop_var);
+int drop_database(struct drop_struct* );
+int drop_table(struct drop_struct* );
+int remove_dir(const char *);
+void free_drop_struct(struct drop_struct* );
 
-int insert_data(struct insert_struct* insert_var);
-void free_insert_struct(struct insert_struct* insert_var);
+int insert_data(struct insert_struct* );
+void free_insert_struct(struct insert_struct* );
+
+int delete_data(struct delete_struct *);
+void free_delete_struct(struct delete_struct *);
+
+int evaluate_condition(struct record *, struct condition *, int *);
+int evaluate_comparison(struct record *, struct condition *, int *);
+void free_condition_tree(struct condition *);
+
+void free_records(struct record *);
 
 #endif

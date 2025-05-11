@@ -34,6 +34,7 @@ digits {digit}+
 "("                                 {return '(';}
 ")"                                 {return ')';}
 "*"                                 {return STAR;}
+"."                                 {return '.';}
 ";"                                 {return ';';}
 ","                                 {return ',';}
 "="                                 {return '=';}

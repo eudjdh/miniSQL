@@ -575,3 +575,301 @@ void free_insert_struct(struct insert_struct *insert_var){
     free(insert_var);
 }
 /*****************************************************************************/
+
+/*********************************delete**************************************/
+int delete_data(struct delete_struct *delete_var){
+    if(strcmp(pwd, "database") == 0)    return 3;
+
+    char sysdat_path[512];
+    char datafile_path[512];
+    char temp_datafile_path[512];
+    char line[512];
+    snprintf(sysdat_path, sizeof(sysdat_path), "%s%s/sys.dat", root_path, pwd);
+    snprintf(datafile_path, sizeof(datafile_path), "%s%s/%s.txt", root_path, pwd, delete_var->table_name);
+    snprintf(temp_datafile_path, sizeof(temp_datafile_path), "%s%s/temp.txt", root_path, pwd);
+    FILE *datafile_fp = fopen(datafile_path, "r");
+    if(!datafile_fp)    return 2;   // 表不存在，r模式打开文件会使fp为NULL
+    // 表存在
+    if(!delete_var->conditions){    // 没有where子句，则清空表
+        rewind(datafile_fp);
+        if(!fgets(line, sizeof(line), datafile_fp)) return 5;   // 表为空
+        FILE *temp_datafile_fp = fopen(temp_datafile_path, "w");
+        fclose(datafile_fp);
+        fclose(temp_datafile_fp);
+        // 删除旧文件
+        if (remove(datafile_path) != 0) {
+            perror("删除原文件出错");
+            return -1;
+        }
+        // 改名新文件
+        if (rename(temp_datafile_path, datafile_path) != 0) {
+            perror("重命名临时文件出错");
+            return -1;
+        }
+        return 1;
+    }
+    else{                           // 有where子句，按照条件删除行
+        // record链表为当前行的数据
+        if(!fgets(line, sizeof(line), datafile_fp)) return 5;   // 表为空
+        rewind(datafile_fp);
+        struct record *records = NULL;
+        FILE *sysdat_fp = fopen(sysdat_path, "r");
+        if(!sysdat_fp){
+            perror("sys.dat");
+            return -1;
+        }
+        rewind(sysdat_fp);
+        int column_count = 0;
+        // 根据sys.dat构造record链表，具体值置空，其余值根据sys.dat文件填写
+        while(fgets(line, sizeof(line), sysdat_fp)){
+            char *nl = strchr(line, '\n');
+            if(nl)  *nl = '\0';
+            char *table_name = strtok(line, " ");
+            if(strcmp(table_name, delete_var->table_name) != 0) continue;
+            else{
+                column_count++;
+                char *tokens[5];
+                int token_count = 0;
+                char *token = strtok(NULL, " ");
+                while(token && token_count < 5){
+                    tokens[token_count++] = token;
+                    token = strtok(NULL, " ");
+                }
+                struct record *new_record = (struct record *)malloc(sizeof(struct record));
+                new_record->index = atoi(tokens[0]);
+                new_record->column_name = strdup(tokens[1]);
+                if(strcmp(tokens[2], "int") == 0){
+                    new_record->type = INT;
+                    new_record->num_val = -1;
+                }
+                else{
+                    new_record->type = CHAR;
+                    new_record->str_val = NULL;
+                }
+                new_record->next = NULL;
+                if(!records){
+                    records = new_record;
+                    continue;
+                }
+                struct record *last = records;
+                while(last->next)   last = last->next;
+                last->next = new_record;
+            }
+        }
+        fclose(sysdat_fp);
+        char *copy = NULL;
+        FILE *temp_datafile_fp = fopen(temp_datafile_path, "w");
+        if(!temp_datafile_fp){
+            perror("临时数据文件");
+            return -1;
+        }
+        rewind(temp_datafile_fp);
+        // 从原文件中逐行读，并将值填入构造的临时数据链表中，读完根据条件判断，若满足delete条件则跳过，否则复制到temp文件中
+        while(fgets(line, sizeof(line), datafile_fp)){
+            copy = strdup(line);
+            char *nl = strchr(line, '\n');
+            if(nl)  *nl = '\0';
+            // 分割数据行
+            char *data[column_count];
+            int token_count = 0;
+            char *token = strtok(line, " ");
+            while(token && token_count < column_count){
+                data[token_count++] = token;
+                token = strtok(NULL, " ");
+            }
+            // 填充records
+            token_count = 0;
+            struct record *cur_record = records;
+            while(cur_record && token_count < column_count){
+                if(cur_record->type == INT) cur_record->num_val = atoi(data[token_count]);
+                else    cur_record->str_val = strdup(data[token_count]);
+                cur_record = cur_record->next;
+                token_count++;
+            }
+            // 判断record，决定是否将此行写入新文件
+            int have_column = TRUE;  // 判断有无列
+            int is_delete = evaluate_condition(records, delete_var->conditions, &have_column);
+            if(have_column == FALSE){  // 没有列，提前结束
+                fclose(datafile_fp);
+                fclose(temp_datafile_fp);
+                if(copy)    free(copy);
+                if(remove(temp_datafile_path) != 0){
+                    perror("删除临时文件错误");
+                    return -1;
+                }
+                free_records(records);
+                return 4;
+            }
+            if(is_delete == TRUE)   continue;   // 条件为真，删除此行
+            else    fprintf(temp_datafile_fp, "%s", copy);  // 条件为假，保留此行
+        }
+        fclose(datafile_fp);
+        fclose(temp_datafile_fp);
+        if(copy)    free(copy);
+        if(remove(datafile_path) != 0){
+            perror("删除原文件错误");
+            return -1;
+        }
+        if(rename(temp_datafile_path, datafile_path) != 0){
+            perror("重命名临时文件出错");
+            return -1;
+        }
+        free_records(records);
+        return 1;
+    }
+}
+
+void free_delete_struct(struct delete_struct *delete_var){
+    if(!delete_var) return;
+    if(delete_var->table_name) free(delete_var->table_name);
+    if(delete_var->conditions)  free_condition_tree(delete_var->conditions);
+    free(delete_var);
+}
+/*****************************************************************************/
+
+/*********************************condition tree******************************/
+int evaluate_condition(struct record *records, struct condition *conditions, int *have_column){
+    if(*have_column == FALSE)
+        return FALSE;
+    switch(conditions->type){
+        case COMPARISON:
+            switch(conditions->op){
+                case AND:
+                    return evaluate_condition(records, conditions->left, have_column) && evaluate_condition(records, conditions->right, have_column);
+                case OR:
+                    return evaluate_condition(records, conditions->left, have_column) || evaluate_condition(records, conditions->right, have_column);
+                case EQ:
+                case NOT_EQ:
+                case GREATER:
+                case LESS:
+                case GREATER_OR_EQ:
+                case LESS_OR_EQ:
+                    return evaluate_comparison(records, conditions, have_column);
+                default:
+                    return FALSE;
+            }
+        default:
+            return FALSE;
+    }
+}
+
+int evaluate_comparison(struct record *records, struct condition *conditions, int *have_column){
+    struct record *cur_record = records;
+    switch(conditions->op){
+        case EQ:
+            if(conditions->left->data->type == CHAR){
+                while(cur_record){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return TRUE;
+                        else    return FALSE;
+                    }
+                    cur_record = cur_record->next;
+                }
+                *have_column = FALSE;
+                return FALSE;
+            }
+            else{
+                while(cur_record){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        return cur_record->num_val == conditions->right->data->num_val;
+                    }
+                    cur_record = cur_record->next;
+                }
+                *have_column = FALSE;
+                return FALSE;
+            }
+        case NOT_EQ:
+            if(conditions->left->data->type == CHAR){
+                while(cur_record){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return FALSE;
+                        else    return TRUE;
+                    }
+                    cur_record = cur_record->next;
+                }
+                *have_column = FALSE;
+                return FALSE;
+            }
+            else{
+                while(cur_record){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        return cur_record->num_val != conditions->right->data->num_val;
+                    }
+                    cur_record = cur_record->next;
+                }
+                *have_column = FALSE;
+                return FALSE;
+            }
+        case GREATER:
+            while(cur_record){
+                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                    *have_column = TRUE;
+                    return cur_record->num_val > conditions->right->data->num_val;
+                }
+                cur_record = cur_record->next;
+            }
+            *have_column = FALSE;
+            return FALSE;
+        case LESS:
+            while(cur_record){
+                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                    *have_column = TRUE;
+                    return cur_record->num_val < conditions->right->data->num_val;
+                }
+                cur_record = cur_record->next;
+            }
+            *have_column = FALSE;
+            return FALSE;
+        case GREATER_OR_EQ:
+            while(cur_record){
+                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                    *have_column = TRUE;
+                    return cur_record->num_val >= conditions->right->data->num_val;
+                }
+                cur_record = cur_record->next;
+            }
+            *have_column = FALSE;
+            return FALSE;
+        case LESS_OR_EQ:
+            while(cur_record){
+                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                    *have_column = TRUE;
+                    return cur_record->num_val <= conditions->right->data->num_val;
+                }
+                cur_record = cur_record->next;
+            }
+            *have_column = FALSE;
+            return FALSE;
+        default:
+            return FALSE;
+    }
+}
+
+void free_condition_tree(struct condition *node){
+    if(!node)   return;
+
+    free_condition_tree(node->left);
+    free_condition_tree(node->right);
+
+    if(node->type == COLUMN && node->column_name)   free(node->column_name);
+    else if(node->type == VALUE && node->data->type == CHAR && node->data->str_val) free(node->data->str_val);
+
+    free(node);
+}
+/*****************************************************************************/
+
+/*********************************free records********************************/
+void free_records(struct record *records){
+    while(records){
+        struct record *next = records->next;
+        if(records->column_name)    free(records->column_name);
+        if(records->type == CHAR)   free(records->str_val);
+        free(records);
+        records = next;
+    }
+}
+/*****************************************************************************/

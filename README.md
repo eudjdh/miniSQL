@@ -27,18 +27,29 @@ database/
 - [x] show表格
 - [x] insert数据
 - [ ] update数据
-- [ ] delete数据
+- [x] delete数据
 - [ ] select数据
 - [x] exit数据库或miniSQL
 ### 问题记录
-#### ✅文法规则出现移位/归约冲突问题  
+#### ✅文法规则出现移位/归约冲突问题(大乌龙🤣🤣🤣🤣🤣)
 文法规则编写过程中关于`select`等语句中的`where`条件语句出现过`shift/reduce conflict`问题，原因是在`conditions`文法规则中出现  
 ```
 conditions  :   conditions KW_AND conditions
             |   conditions KW_OR conditions
             ;
 ```
-通过询问**Deepseek**工具进行修改，得到**src/myParser.y**文件中标记的代码块，并受到**添加非终结符**的启发，自己对文法进行了一定的修改，亦在文件中有标记。此外，还询问了**Deepseek**两种文法的区别，并记录在了两个代码块下方。
+通过询问`deepseek`得知可以通过声明优先级的方式规避这种冲突，于是声明
+```
+%left OR
+%left AND
+```
+但是修改后依然有冲突警告，挣扎很久后（甚至大幅修改了文法规则，变得复杂难读，详见我的commit记录），最终得知犯下愚蠢错误，`OR`和`AND`token从未出现过，而是`KW_OR`和`KW_AND`🤣🤣🤣🤣🤣  
+最终改为
+```
+%left KW_OR
+%left KW_AND
+```
+最终不显示存在冲突
 #### ✅具体值无法传给终结符
 需要在.l文件中强制赋值给终结符，并在.y文件中进行属性绑定
 #### ✅C语言中无法直接删除文件行
