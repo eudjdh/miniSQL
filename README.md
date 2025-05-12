@@ -26,7 +26,7 @@ database/
 - [x] show数据库
 - [x] show表格
 - [x] insert数据
-- [ ] update数据
+- [x] update数据
 - [x] delete数据
 - [ ] select数据
 - [x] exit数据库或miniSQL

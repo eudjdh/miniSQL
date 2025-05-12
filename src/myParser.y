@@ -5,7 +5,7 @@
 %}
 
 %union{
-    char *str_val;                              // 字符串值，数字和标识符都以字符串存储操作，仅有设计比较时才会转换为数字
+    char *str_val;                              // 字符串值，数字和标识符都以字符串存储操作，仅有涉及比较时才会转换为数字
     struct create_struct *create_var;           // create语句的值
     struct create_table_entries *entries_var;   // create table的列链表
     struct use_struct *use_var;                 // use语句的值
@@ -14,8 +14,10 @@
     struct insert_value *value_var;             // insert语句中的values
     struct insert_column *column_var;           // insert语句中的columns
     struct insert_struct *insert_var;           // insert语句的值
-    struct condition *conditions;              // where子句中的条件
+    struct condition *conditions;               // where子句中的条件
     struct delete_struct *delete_var;           // delete语句的值
+    struct result *results;                     // 需要修改成的结果
+    struct update_struct *update_var;           // update语句的值
 }
 
 %token <str_val> IDENTIFIER NUMBER 
@@ -30,6 +32,8 @@
 %type <insert_var> insert_sql
 %type <conditions> condition conditions where_clause
 %type <delete_var> delete_sql
+%type <results> results result
+%type <update_var> update_sql
 
 %token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL '.'
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
@@ -181,7 +185,22 @@ statement   :   create_sql
                 }
             |   update_sql 
                 {
-
+                    int result = update_data($1);
+                    if(result == 1)
+                        printf("修改数据成功\n");
+                    else if(result == 2)
+                        printf("表%s不存在\n", $1->table_name);
+                    else if(result == 3)
+                        printf("请进入数据库更新数据\n");
+                    else if(result == 4)
+                        printf("列不存在\n");
+                    else if(result == 5)
+                        printf("表%s为空\n", $1->table_name);
+                    else if(result == 6)
+                        printf("类型不匹配\n");
+                    else
+                        printf("更新数据失败\n");
+                    free_update_struct($1);
                 }
             |   EXIT
                 {
@@ -362,20 +381,6 @@ select_sql  :   KW_SELECT STAR KW_FROM tables where_clause ';'
                 }
             ;
 
-delete_sql  :   KW_DELETE KW_FROM IDENTIFIER where_clause ';'                                   
-                {
-                    $$ = (struct delete_struct *)malloc(sizeof(struct delete_struct));
-                    $$->table_name = strdup($3);
-                    $$->conditions = $4;
-                }
-            ;
-
-update_sql  :   KW_UPDATE IDENTIFIER KW_SET results where_clause ';'                            
-                {
-
-                }
-            ;
-
 tables      :   IDENTIFIER
             |   tables ',' IDENTIFIER
             ;
@@ -388,12 +393,57 @@ field       :   IDENTIFIER
             |   IDENTIFIER '.' IDENTIFIER
             ;
 
+delete_sql  :   KW_DELETE KW_FROM IDENTIFIER where_clause ';'                                   
+                {
+                    $$ = (struct delete_struct *)malloc(sizeof(struct delete_struct));
+                    $$->table_name = strdup($3);
+                    $$->conditions = $4;
+                }
+            ;
+
+update_sql  :   KW_UPDATE IDENTIFIER KW_SET results where_clause ';'                            
+                {
+                    $$ = (struct update_struct*)malloc(sizeof(struct update_struct));
+                    $$->table_name = strdup($2);
+                    $$->results = $4;
+                    $$->conditions = $5;
+                }
+            ;
+
 results     :   result
+                {
+                    $$ = $1;
+                }
             |   results ',' result
+                {
+                    if(!$1)
+                        $$ = $3;
+                    else{
+                        struct result *last = $1;
+                        while(last->next_result != NULL)
+                            last = last->next_result;
+                        last->next_result = $3;
+                        $$ = $1;
+                    }
+                }
             ;
 
 result      :   IDENTIFIER '=' SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
+                {
+                    $$ = (struct result*)malloc(sizeof(struct result));
+                    $$->column_name = strdup($1);
+                    $$->type = CHAR;
+                    $$->str_val = strdup($4);
+                    $$->next_result = NULL;
+                }
             |   IDENTIFIER '=' NUMBER
+                {
+                    $$ = (struct result*)malloc(sizeof(struct result));
+                    $$->column_name = strdup($1);
+                    $$->type = INT;
+                    $$->num_val = atoi($3);
+                    $$->next_result = NULL;
+                }
             ;
 
 where_clause:

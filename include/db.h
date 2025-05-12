@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <assert.h>
+#include <limits.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -63,6 +64,28 @@ struct insert_struct{
     struct insert_value *values;                // 值链表
 };
 
+// delete语句相关结构体
+struct delete_struct{
+    char *table_name;
+    struct condition *conditions;
+};
+
+// update语句相关结构体
+struct result{
+    char *column_name;
+    enum DATATYPE type;
+    union {
+        int num_val;
+        char *str_val;
+    };
+    struct result *next_result;
+};
+struct update_struct{
+    char *table_name;
+    struct result *results;
+    struct condition *conditions;
+};
+
 // where子句的条件相关结构体
 struct cmpdata{
     enum DATATYPE type;
@@ -82,14 +105,9 @@ struct condition{
     };
 };
 
-// delete语句相关结构体
-struct delete_struct{
-    char *table_name;
-    struct condition *conditions;
-};
-
 // 读取现有记录的结构体，用于where子句中的比较
 struct record{
+    char *table_name;
     char *column_name;
     int index;
     enum DATATYPE type;
@@ -124,6 +142,10 @@ void free_insert_struct(struct insert_struct* );
 
 int delete_data(struct delete_struct *);
 void free_delete_struct(struct delete_struct *);
+
+int update_data(struct update_struct *);
+void free_update_struct(struct update_struct *);
+void free_update_results(struct result *);
 
 int evaluate_condition(struct record *, struct condition *, int *);
 int evaluate_comparison(struct record *, struct condition *, int *);
