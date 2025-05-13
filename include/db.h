@@ -118,6 +118,7 @@ struct condition{
         enum COMP_OP op;                        // 比较符号种类
         struct cmpdata *data;
     };
+    char *table_name;                           // 条件中的表名
 };
 
 // 读取现有记录的结构体，用于where子句中的比较
@@ -163,6 +164,7 @@ void free_update_struct(struct update_struct *);
 void free_update_results(struct result *);
 
 int select_data(struct select_struct *);
+struct record *create_new_row(struct record *);
 void free_select_struct(struct select_struct *);
 void free_select_columns(struct column *);
 void free_select_tables(struct table *);

@@ -535,6 +535,7 @@ conditions  :   condition
                     $$->right = $3;
                     $$->type = COMPARISON;
                     $$->op = AND;
+                    $$->table_name = NULL;
                 }
             |   conditions KW_OR conditions
                 {
@@ -543,6 +544,7 @@ conditions  :   condition
                     $$->right = $3;
                     $$->type = COMPARISON;
                     $$->op = OR;
+                    $$->table_name = NULL;
                 }
             ;
 
@@ -553,6 +555,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -560,11 +563,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = INT;
                     right->data->num_val = atoi($3);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = EQ;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER '=' SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
                 {
@@ -573,6 +578,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -580,11 +586,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = CHAR;
                     right->data->str_val = strdup($4);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = EQ;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER '>' NUMBER
                 {
@@ -593,6 +601,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -600,11 +609,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = INT;
                     right->data->num_val = atoi($3);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = GREATER;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER '<' NUMBER
                 {
@@ -613,6 +624,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -620,11 +632,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = INT;
                     right->data->num_val = atoi($3);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = LESS;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER NOT_EQUAL NUMBER
                 {
@@ -633,6 +647,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -640,11 +655,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = INT;
                     right->data->num_val = atoi($3);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = NOT_EQ;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER NOT_EQUAL SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
                 {
@@ -653,6 +670,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -660,11 +678,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = CHAR;
                     right->data->str_val = strdup($4);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = NOT_EQ;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER LESS_OR_EQUAL NUMBER
                 {
@@ -673,6 +693,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -680,11 +701,13 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = INT;
                     right->data->num_val = atoi($3);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = LESS_OR_EQ;
+                    $$->table_name = NULL;
                 }
             |   IDENTIFIER GREATER_OR_EQUAL NUMBER
                 {
@@ -693,6 +716,7 @@ condition   :   IDENTIFIER '=' NUMBER
                     left->right = NULL;
                     left->type = COLUMN;
                     left->column_name = strdup($1);
+                    left->table_name = NULL;
                     struct condition *right = (struct condition*)malloc(sizeof(struct condition));
                     right->left = NULL;
                     right->right = NULL;
@@ -700,11 +724,197 @@ condition   :   IDENTIFIER '=' NUMBER
                     right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
                     right->data->type = INT;
                     right->data->num_val = atoi($3);
+                    right->table_name = NULL;
                     $$ = (struct condition*)malloc(sizeof(struct condition));
                     $$->left = left;
                     $$->right = right;
                     $$->type = COMPARISON;
                     $$->op = GREATER_OR_EQ;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER '=' NUMBER
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = INT;
+                    right->data->num_val = atoi($5);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = EQ;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER '=' SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = CHAR;
+                    right->data->str_val = strdup($6);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = EQ;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER '>' NUMBER
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = INT;
+                    right->data->num_val = atoi($5);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = GREATER;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER '<' NUMBER
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = INT;
+                    right->data->num_val = atoi($5);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = LESS;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER NOT_EQUAL NUMBER
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = INT;
+                    right->data->num_val = atoi($5);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = NOT_EQ;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER NOT_EQUAL SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = CHAR;
+                    right->data->str_val = strdup($6);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = NOT_EQ;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER LESS_OR_EQUAL NUMBER
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = INT;
+                    right->data->num_val = atoi($5);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = LESS_OR_EQ;
+                    $$->table_name = NULL;
+                }
+            |   IDENTIFIER '.' IDENTIFIER GREATER_OR_EQUAL NUMBER
+                {
+                    struct condition *left = (struct condition*)malloc(sizeof(struct condition));
+                    left->left = NULL;
+                    left->right = NULL;
+                    left->type = COLUMN;
+                    left->column_name = strdup($3);
+                    left->table_name = strdup($1);
+                    struct condition *right = (struct condition*)malloc(sizeof(struct condition));
+                    right->left = NULL;
+                    right->right = NULL;
+                    right->type = VALUE;
+                    right->data = (struct cmpdata*)malloc(sizeof(struct cmpdata));
+                    right->data->type = INT;
+                    right->data->num_val = atoi($5);
+                    right->table_name = NULL;
+                    $$ = (struct condition*)malloc(sizeof(struct condition));
+                    $$->left = left;
+                    $$->right = right;
+                    $$->type = COMPARISON;
+                    $$->op = GREATER_OR_EQ;
+                    $$->table_name = NULL;
                 }
             ;
 

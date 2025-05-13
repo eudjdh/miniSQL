@@ -29,7 +29,7 @@ database/
 - [x] update数据
 - [x] delete数据
 - [x] select单表查询
-- [ ] select多表连接查询
+- [x] select多表连接查询
 - [x] exit数据库或miniSQL
 ### 问题记录
 #### ✅文法规则出现移位/归约冲突问题(大乌龙🤣🤣🤣🤣🤣)

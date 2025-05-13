@@ -914,7 +914,6 @@ int select_data(struct select_struct *select_var){
     char datafile_path[512];
     char line[512];
     snprintf(sysdat_path, sizeof(sysdat_path), "%s%s/sys.dat", root_path, pwd);
-    struct table *cur_table = select_var->tables;
     struct record *records = NULL;
     FILE *datafile_fp;
     FILE *sysdat_fp = fopen(sysdat_path, "r");
@@ -922,10 +921,10 @@ int select_data(struct select_struct *select_var){
         perror("sys.dat");
         return -1;
     }
-    if(!cur_table->next_table){ // 单表查询
+    if(!select_var->tables->next_table){ // 单表查询
         rewind(sysdat_fp);
         // 先判断表是否存在
-        snprintf(datafile_path, sizeof(datafile_path), "%s%s/%s.txt", root_path, pwd, cur_table->table_name);
+        snprintf(datafile_path, sizeof(datafile_path), "%s%s/%s.txt", root_path, pwd, select_var->tables->table_name);
         datafile_fp = fopen(datafile_path, "r");
         if(!datafile_fp){   // 表不存在
             free_records(records);
@@ -939,7 +938,7 @@ int select_data(struct select_struct *select_var){
             char *nl = strchr(line, '\n');
             if(nl)  *nl = '\0';
             char *table_name = strtok(line, " ");
-            if(strcmp(table_name, cur_table->table_name) != 0)  continue;
+            if(strcmp(table_name, select_var->tables->table_name) != 0)  continue;
             else{
                 column_count++;
                 char *tokens[5];
@@ -1113,8 +1112,420 @@ int select_data(struct select_struct *select_var){
         return 1;
     }
     else{   // 多表查询
+        // 不同于单表查询、delete、update、insert操作的一行一行处理，而需要对多张表的数据做笛卡尔积得到临时表
+        // 故采取struct record **temp_table保存临时表，temp_table[i]指向临时表的第i行
+        // 最后对于临时表做逐行where筛选并逐行打印
+        // 此时需要一个新的结构体来存储临时表
+        struct data_row{
+            struct record *row;
+            struct data_row *next_row;
+        };
+        int conjunction_table_row_num = 0;          // 连接表总行数
+        struct data_row *conjunction_table = NULL;  // 获取整张临时表的头指针
+        struct record *row_templat = NULL;          // 行模板
+        // 先读sys.dat文件构造行模板
+        rewind(sysdat_fp);
+        struct table *cur_table = select_var->tables;
+        int is_blank = FALSE;
+        while(cur_table){
+            snprintf(datafile_path, sizeof(datafile_path), "%s%s/%s.txt", root_path, pwd, cur_table->table_name);
+            datafile_fp = fopen(datafile_path, "r");
+            if(!datafile_fp){   // 表不存在
+                fclose(sysdat_fp);
+                fclose(datafile_fp);
+                return 2;
+            }
+            if(!fgets(line, sizeof(line), datafile_fp)) is_blank = TRUE;    // 有表为空
+            while(fgets(line, sizeof(line), sysdat_fp)){
+                char *nl = strchr(line, '\n');
+                if(nl)  *nl = '\0';
+                char *table_name = strtok(line, " ");
+                if(strcmp(table_name, cur_table->table_name) != 0)  continue;
+                else{
+                    char *tokens[5];
+                    int token_count = 0;
+                    char *token = strtok(NULL, " ");
+                    while(token && token_count < 5){
+                        tokens[token_count++] = token;
+                        token = strtok(NULL, " ");
+                    }
+                    struct record *new_record = (struct record *)malloc(sizeof(struct record));
+                    new_record->index = atoi(tokens[0]);
+                    new_record->column_name = strdup(tokens[1]);
+                    new_record->table_name = strdup(table_name);
+                    if(strcmp(tokens[2], "int") == 0){
+                        new_record->type = INT;
+                        new_record->num_val = -1;
+                    }
+                    else{
+                        new_record->type = CHAR;
+                        new_record->str_val = NULL;
+                    }
+                    new_record->next = NULL;
+                    if(!records){
+                        records = new_record;
+                        continue;
+                    }
+                    struct record *last = records;
+                    while(last->next)   last = last->next;
+                    last->next = new_record;
+                }
+            }
+            cur_table = cur_table->next_table;
+            rewind(sysdat_fp);
+        }
+        struct record *cur_record = records;
+        if(is_blank == TRUE){                       // 有表为空，直接打印表头并退出
+            if(!select_var->columns){               // select * 语句
+                while(cur_record){
+                    printf("%s.%s\t", cur_record->table_name, cur_record->column_name);
+                    cur_record = cur_record->next;
+                }
+                printf("\n");
+            }
+            else{                                   // select columns 语句
+                struct column *cur_column = select_var->columns;
+                while(cur_record){
+                    while(cur_column){
+                        if(cur_column->table_name){ // 有表名
+                            if(strcmp(cur_column->table_name, cur_record->table_name) == 0 && strcmp(cur_column->column_name, cur_record->column_name) == 0){
+                                printf("%s.%s\t", cur_record->table_name, cur_record->column_name);
+                                cur_column = cur_column->next_column;
+                            }
+                            else    cur_column = cur_column->next_column;
+                        }
+                        else{                       // 无表名
+                            if(strcmp(cur_column->column_name, cur_record->column_name) == 0){
+                                printf("%s.%s\t", cur_record->table_name, cur_record->column_name);
+                                cur_column = cur_column->next_column;
+                            }
+                            else    cur_column = cur_column->next_column;
+                        }
+                    }
+                    cur_record = cur_record->next;
+                    cur_column = select_var->columns;
+                }
+                printf("\n");
+            }
+            fclose(sysdat_fp);
+            fclose(datafile_fp);
+            free_records(records);
+            return 1;
+        }
+        fclose(sysdat_fp);
+        fclose(datafile_fp);
+        row_templat = records;
+        // 行模板构建完毕，while循环填充表
+        cur_table = select_var->tables;
+        while(cur_table){
+            if(!conjunction_table){ 
+                // 连接表头指针为空，说明此时还没有生成表
+                // 取表1和表2进行连接生成连接表，并将临时连接表指针赋值给连接表指针
+                struct data_row *temp_table = NULL;
+                struct table *table1 = cur_table;
+                struct table *table2 = cur_table->next_table;
+                int table1_row_num = 0;
+                int table2_row_num = 0;
+                int rows_in_table1_repeat_times = 0;
+                int rows_in_table2_repeat_times = 0;
+                // 连接第一第二张表
+                char datafile1_path[512];
+                char datafile2_path[512];
+                snprintf(datafile1_path, sizeof(datafile1_path), "%s%s/%s.txt", root_path, pwd, table1->table_name);
+                snprintf(datafile2_path, sizeof(datafile2_path), "%s%s/%s.txt", root_path, pwd, table2->table_name);
+                FILE *datafile1_fp = fopen(datafile1_path, "r");
+                FILE *datafile2_fp = fopen(datafile2_path, "r");
+                rewind(datafile1_fp);
+                rewind(datafile2_fp);
+                // 获取两个表的行数
+                int ch;
+                while ((ch = fgetc(datafile1_fp)) != EOF)   if (ch == '\n') table1_row_num++;
+                while ((ch = fgetc(datafile2_fp)) != EOF)   if (ch == '\n') table2_row_num++;
+                conjunction_table_row_num = table1_row_num * table2_row_num;
+                rows_in_table1_repeat_times = table2_row_num;
+                rows_in_table2_repeat_times = table1_row_num;
+                rewind(datafile1_fp);
+                rewind(datafile2_fp);
+                // 建临时表并填充表1数据
+                for(int index = 0; index < table1_row_num; index++){
+                    // 获取表1中的一行数据
+                    fgets(line, sizeof(line), datafile1_fp);
+                    char *nl = strchr(line, '\n');
+                    if(nl)  *nl = '\0';
+                    // 分割数据行
+                    char *data[1024];
+                    int token_count = 0;
+                    char *token = strtok(line, " ");
+                    while(token){
+                        data[token_count++] = token;
+                        token = strtok(NULL, " ");
+                    }
+                    for(int times = 0; times < rows_in_table1_repeat_times; times++){
+                        struct record *new_row = create_new_row(row_templat);
+                        struct data_row *new_data_row = (struct data_row*)malloc(sizeof(struct data_row));
+                        new_data_row->row = new_row;
+                        new_data_row->next_row = NULL;
+                        if(!temp_table) temp_table = new_data_row;
+                        else{
+                            struct data_row *cur_data_row = temp_table;
+                            while(cur_data_row->next_row)   cur_data_row = cur_data_row->next_row;
+                            cur_data_row->next_row = new_data_row;
+                        }
+                        cur_record = new_row;
+                        token_count = 0;
+                        while(strcmp(table1->table_name, cur_record->table_name) == 0){
+                            if(cur_record->type == INT){
+                                // 若该int类型变量之前在插入时没有指定，在文件中会以"*"形式存放，此时赋值给record为int类型的最大值，且在后面的比较中直接返回false
+                                if(strcmp(data[token_count], "*") == 0) cur_record->num_val = INT_MAX;
+                                else    cur_record->num_val = atoi(data[token_count]);
+                            }
+                            else    cur_record->str_val = strdup(data[token_count]);
+                            cur_record = cur_record->next;
+                            token_count++;
+                        }
+                    }
+                }
+                // 填充表2的数据
+                struct data_row *cur_row = temp_table;  // 第一行
+                cur_record = cur_row->row;              // 第一行第一列
+                for(int index = 0; index < rows_in_table2_repeat_times; index++){
+                    for(int row = 0; row < table2_row_num; row++){
+                        // 获取表2中的一行数据
+                        fgets(line, sizeof(line), datafile2_fp);
+                        char *nl = strchr(line, '\n');
+                        if(nl)  *nl = '\0';
+                        // 分割数据行
+                        char *data[1024];
+                        int token_count = 0;
+                        char *token = strtok(line, " ");
+                        while(token){
+                            data[token_count++] = token;
+                            token = strtok(NULL, " ");
+                        }
+                        token_count = 0;
+                        while(cur_record){
+                            if(strcmp(table2->table_name, cur_record->table_name) == 0){
+                                if(cur_record->type == INT){
+                                    // 若该int类型变量之前在插入时没有指定，在文件中会以"*"形式存放，此时赋值给record为int类型的最大值，且在后面的比较中直接返回false
+                                    if(strcmp(data[token_count], "*") == 0) cur_record->num_val = INT_MAX;
+                                    else    cur_record->num_val = atoi(data[token_count]);
+                                }
+                                else    cur_record->str_val = strdup(data[token_count]);
+                                token_count++;
+                            }
+                            cur_record = cur_record->next;
+                        }
+                        cur_row = cur_row->next_row;    // 下一行
+                        if(cur_row) cur_record = cur_row->row;      // 下一行第一列
+                    }
+                    rewind(datafile2_fp);
+                }
+                conjunction_table = temp_table;
+                fclose(datafile1_fp);
+                fclose(datafile2_fp);
+                cur_table = cur_table->next_table->next_table;  // 下次处理第三张表
+            }
+            else{
+                // 连接表指针不为空，说明已经生成表
+                // 将下一个表（存在的话）与连接表连接
+                int cur_table_row_num = 0;
+                int rows_in_conjunction_table_repeat_times = 0;
+                int rows_in_cur_table_repeat_times = 0;
+                snprintf(datafile_path, sizeof(datafile_path), "%s%s/%s.txt", root_path, pwd, cur_table->table_name);
+                datafile_fp = fopen(datafile_path, "r");
+                rewind(datafile_fp);
+                // 获取当前表行数
+                int ch;
+                while ((ch = fgetc(datafile_fp)) != EOF)   if (ch == '\n') cur_table_row_num++;
+                int new_conjunction_table_row_num = conjunction_table_row_num * cur_table_row_num;
+                rows_in_conjunction_table_repeat_times = cur_table_row_num - 1; // 已经有一次了，再重复n-1次即可
+                rows_in_cur_table_repeat_times = conjunction_table_row_num;
+                // 扩展连接表并重复已有内容
+                struct data_row *cur_row = conjunction_table;
+                struct record *cur_record = cur_row->row;
+                struct data_row *last = conjunction_table;
+                while(last->next_row)   last = last->next_row;
+                for(int index = 0; index < rows_in_conjunction_table_repeat_times; index++){
+                    for(int row = 0; row < conjunction_table_row_num; row++){
+                        struct record *new_row  = create_new_row(row_templat);
+                        struct data_row *new_data_row = (struct data_row*)malloc(sizeof(struct data_row));
+                        new_data_row->row = new_row;
+                        new_data_row->next_row = NULL;
+                        last->next_row = new_data_row;
+                        last = new_data_row;
+                        while(cur_record){
+                            new_row->table_name = strdup(cur_record->table_name);
+                            new_row->column_name = strdup(cur_record->column_name);
+                            new_row->index = cur_record->index;
+                            new_row->type = cur_record->type;
+                            if(new_row->type == CHAR){
+                                if(cur_record->str_val)
+                                    new_row->str_val = strdup(cur_record->str_val);
+                            }
+                            else    new_row->num_val = cur_record->num_val;
+                            cur_record = cur_record->next;
+                            new_row = new_row->next;
+                        }
+                        cur_row = cur_row->next_row;
+                        if(cur_row) cur_record = cur_row->row;
+                    }
+                    cur_row = conjunction_table;
+                    cur_record = cur_row->row;
+                }
+                // 填充新表的数据
+                rewind(datafile_fp);
+                cur_row = conjunction_table;        // 第一行
+                cur_record = cur_row->row;          // 第一行第一列
+                for(int index = 0; index < cur_table_row_num; index++){
+                    // 获取表中的一行数据
+                    fgets(line, sizeof(line), datafile_fp);
+                    char *nl = strchr(line, '\n');
+                    if(nl)  *nl = '\0';
+                    // 分割数据行
+                    char *data[1024];
+                    int token_count = 0;
+                    char *token = strtok(line, " ");
+                    while(token){
+                        data[token_count++] = token;
+                        token = strtok(NULL, " ");
+                    }
+                    for(int row = 0; row < rows_in_cur_table_repeat_times; row++){
+                        token_count = 0;
+                        while(cur_record){
+                            if(strcmp(cur_table->table_name, cur_record->table_name) == 0){
+                                if(cur_record->type == INT){
+                                    // 若该int类型变量之前在插入时没有指定，在文件中会以"*"形式存放，此时赋值给record为int类型的最大值，且在后面的比较中直接返回false
+                                    if(strcmp(data[token_count], "*") == 0) cur_record->num_val = INT_MAX;
+                                    else    cur_record->num_val = atoi(data[token_count]);
+                                }
+                                else    cur_record->str_val = strdup(data[token_count]);
+                                token_count++;
+                            }
+                            cur_record = cur_record->next;
+                        }
+                        cur_row = cur_row->next_row;
+                        if(cur_row) cur_record = cur_row->row;
+                    }
+                }
+                fclose(datafile_fp);
+                conjunction_table_row_num = new_conjunction_table_row_num;
+                cur_table = cur_table->next_table;
+            }
+        }
+        // 打印表头
+        cur_record = conjunction_table->row;
+        if(!select_var->columns){               // select * 语句
+            while(cur_record){
+                printf("%s.%s\t", cur_record->table_name, cur_record->column_name);
+                cur_record = cur_record->next;
+            }
+            printf("\n");
+        }
+        else{                                   // select columns 语句
+            struct column *cur_column = select_var->columns;
+            while(cur_record){
+                while(cur_column){
+                    if(cur_column->table_name){ // 有表名
+                        if(strcmp(cur_column->table_name, cur_record->table_name) == 0 && strcmp(cur_column->column_name, cur_record->column_name) == 0){
+                            printf("%s.%s\t", cur_record->table_name, cur_record->column_name);
+                            cur_column = cur_column->next_column;
+                        }
+                        else    cur_column = cur_column->next_column;
+                    }
+                    else{                       // 无表名
+                        if(strcmp(cur_column->column_name, cur_record->column_name) == 0){
+                            printf("%s.%s\t", cur_record->table_name, cur_record->column_name);
+                            cur_column = cur_column->next_column;
+                        }
+                        else    cur_column = cur_column->next_column;
+                    }
+                }
+                cur_record = cur_record->next;
+                cur_column = select_var->columns;
+            }
+            printf("\n");
+        }
+        // 最终得到连接好的大表，逐行进行判断，为真则打印
+        struct data_row *cur_row = conjunction_table;
+        cur_record = cur_row->row;
+        while(cur_row){
+            int have_column = TRUE;             // 判断有无列
+            int is_select = evaluate_condition(cur_record, select_var->conditions, &have_column);
+            if(have_column == FALSE){           // 没有列，提前结束
+                fclose(datafile_fp);
+                free_records(records);
+                return 4;
+            }
+            if(is_select == TRUE){              // 选择此行，开始打印
+                if(!select_var->columns){       // select * 语句
+                    cur_record = cur_row->row;
+                    while(cur_record){
+                        if(cur_record->type == CHAR){
+                            if(strcmp(cur_record->str_val, "*") == 0)   printf(" \t");  // 没有数据的列，打印空白
+                            else    printf("%s\t", cur_record->str_val);
+                        }
+                        else{
+                            if(cur_record->num_val == INT_MAX)  printf(" \t");  // 没有数据的列，打印空白
+                            else    printf("%d\t", cur_record->num_val);
+                        }
+                        cur_record = cur_record->next;
+                    }
+                    printf("\n");
+                }
+                else{                           // select columns 语句
+                    cur_record = cur_row->row;
+                    struct column *cur_column = select_var->columns;
+                    while(cur_record){
+                        while(cur_column){
+                            if(strcmp(cur_column->column_name, cur_record->column_name) == 0){
+                                if(cur_record->type == CHAR){
+                                    if(strcmp(cur_record->str_val, "*") == 0)   printf(" \t");
+                                    else    printf("%s\t", cur_record->str_val);
+                                }
+                                else{
+                                    if(cur_record->num_val == INT_MAX)   printf(" \t");
+                                    else    printf("%d\t", cur_record->num_val);
+                                }
+                                cur_column = cur_column->next_column;
+                            }
+                            else    cur_column = cur_column->next_column;
+                        }
+                        cur_record = cur_record->next;
+                        cur_column = select_var->columns;
+                    }
+                    printf("\n");
+                }   
+            }
+            // 不选择此行，放弃打印，判断下一行
+            cur_row = cur_row->next_row;
+            if(cur_row) cur_record = cur_row->row;
+        }
+        free_records(records);
         return 1;
     }
+}
+
+struct record *create_new_row(struct record *template){
+    struct record *new_row = NULL;
+    struct record *cur_column = template;
+    while(cur_column){
+        struct record *new_column = (struct record*)malloc(sizeof(struct record));
+        new_column->column_name = strdup(cur_column->column_name);
+        new_column->index = cur_column->index;
+        new_column->table_name = strdup(cur_column->table_name);
+        new_column->type = cur_column->type;
+        if(new_column->type == CHAR)    new_column->str_val = NULL;
+        else    new_column->num_val = cur_column->num_val;
+        new_column->next = NULL;
+        if(!new_row)    new_row = new_column;
+        else{
+            struct record *last = new_row;
+            while(last->next)  last = last->next;
+            last->next = new_column;
+        }
+        cur_column = cur_column->next;
+    }
+    return new_row;
 }
 
 void free_select_struct(struct select_struct *select_var){
@@ -1178,10 +1589,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
         case EQ:
             if(conditions->right->data->type == CHAR){
                 while(cur_record){
-                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                        *have_column = TRUE;
-                        if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return TRUE;
-                        else    return FALSE;
+                    if(conditions->left->table_name){
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                            *have_column = TRUE;
+                            if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return TRUE;
+                            else    return FALSE;
+                        }
+                    }
+                    else{
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                            *have_column = TRUE;
+                            if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return TRUE;
+                            else    return FALSE;
+                        }
                     }
                     cur_record = cur_record->next;
                 }
@@ -1190,10 +1610,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
             }
             else{
                 while(cur_record){
-                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                        *have_column = TRUE;
-                        if(cur_record->num_val == INT_MAX)  return FALSE;
-                        else    return cur_record->num_val == conditions->right->data->num_val;
+                    if(conditions->left->table_name){
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                            *have_column = TRUE;
+                            if(cur_record->num_val == INT_MAX)  return FALSE;
+                            else    return cur_record->num_val == conditions->right->data->num_val;
+                        }
+                    }
+                    else{
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                            *have_column = TRUE;
+                            if(cur_record->num_val == INT_MAX)  return FALSE;
+                            else    return cur_record->num_val == conditions->right->data->num_val;
+                        }
                     }
                     cur_record = cur_record->next;
                 }
@@ -1203,10 +1632,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
         case NOT_EQ:
             if(conditions->right->data->type == CHAR){
                 while(cur_record){
-                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                        *have_column = TRUE;
-                        if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return FALSE;
-                        else    return TRUE;
+                    if(conditions->left->table_name){
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                            *have_column = TRUE;
+                            if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return FALSE;
+                            else    return TRUE;
+                        }
+                    }
+                    else{
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                            *have_column = TRUE;
+                            if(strcmp(cur_record->str_val, conditions->right->data->str_val) == 0)  return FALSE;
+                            else    return TRUE;
+                        }
                     }
                     cur_record = cur_record->next;
                 }
@@ -1215,10 +1653,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
             }
             else{
                 while(cur_record){
-                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                        *have_column = TRUE;
-                        if(cur_record->num_val == INT_MAX)  return FALSE;
-                        else    return cur_record->num_val != conditions->right->data->num_val;
+                    if(conditions->left->table_name){
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                            *have_column = TRUE;
+                            if(cur_record->num_val == INT_MAX)  return FALSE;
+                            else    return cur_record->num_val != conditions->right->data->num_val;
+                        }
+                    }
+                    else{
+                        if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                            *have_column = TRUE;
+                            if(cur_record->num_val == INT_MAX)  return FALSE;
+                            else    return cur_record->num_val != conditions->right->data->num_val;
+                        }
                     }
                     cur_record = cur_record->next;
                 }
@@ -1227,10 +1674,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
             }
         case GREATER:
             while(cur_record){
-                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                    *have_column = TRUE;
-                    if(cur_record->num_val == INT_MAX)  return FALSE;
-                    else    return cur_record->num_val > conditions->right->data->num_val;
+                if(conditions->left->table_name){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val > conditions->right->data->num_val;
+                    }
+                }
+                else{
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val > conditions->right->data->num_val;
+                    }
                 }
                 cur_record = cur_record->next;
             }
@@ -1238,10 +1694,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
             return FALSE;
         case LESS:
             while(cur_record){
-                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                    *have_column = TRUE;
-                    if(cur_record->num_val == INT_MAX)  return FALSE;
-                    else    return cur_record->num_val < conditions->right->data->num_val;
+                if(conditions->left->table_name){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val < conditions->right->data->num_val;
+                    }
+                }
+                else{
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val < conditions->right->data->num_val;
+                    }
                 }
                 cur_record = cur_record->next;
             }
@@ -1249,10 +1714,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
             return FALSE;
         case GREATER_OR_EQ:
             while(cur_record){
-                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                    *have_column = TRUE;
-                    if(cur_record->num_val == INT_MAX)  return FALSE;
-                    else    return cur_record->num_val >= conditions->right->data->num_val;
+                if(conditions->left->table_name){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val >= conditions->right->data->num_val;
+                    }
+                }
+                else{
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val >= conditions->right->data->num_val;
+                    }
                 }
                 cur_record = cur_record->next;
             }
@@ -1260,10 +1734,19 @@ int evaluate_comparison(struct record *records, struct condition *conditions, in
             return FALSE;
         case LESS_OR_EQ:
             while(cur_record){
-                if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
-                    *have_column = TRUE;
-                    if(cur_record->num_val == INT_MAX)  return FALSE;
-                    else    return cur_record->num_val <= conditions->right->data->num_val;
+                if(conditions->left->table_name){
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0 && strcmp(cur_record->table_name, conditions->left->table_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val <= conditions->right->data->num_val;
+                    }
+                }
+                else{
+                    if(strcmp(cur_record->column_name, conditions->left->column_name) == 0){
+                        *have_column = TRUE;
+                        if(cur_record->num_val == INT_MAX)  return FALSE;
+                        else    return cur_record->num_val <= conditions->right->data->num_val;
+                    }
                 }
                 cur_record = cur_record->next;
             }
@@ -1280,7 +1763,10 @@ void free_condition_tree(struct condition *node){
     free_condition_tree(node->left);
     free_condition_tree(node->right);
 
-    if(node->type == COLUMN && node->column_name)   free(node->column_name);
+    if(node->type == COLUMN && node->column_name){
+        if(node->table_name)    free(node->table_name);
+        free(node->column_name);
+    }
     else if(node->type == VALUE && node->data->type == CHAR && node->data->str_val) free(node->data->str_val);
 
     free(node);
