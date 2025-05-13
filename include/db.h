@@ -8,7 +8,6 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <assert.h>
 #include <limits.h>
 
 #define TRUE 1
@@ -86,6 +85,22 @@ struct update_struct{
     struct condition *conditions;
 };
 
+// select语句相关结构体
+struct column{
+    char *table_name;
+    char *column_name;
+    struct column *next_column;
+};
+struct table{
+    char *table_name;
+    struct table *next_table;
+};
+struct select_struct{
+    struct column *columns;
+    struct table *tables;
+    struct condition *conditions;
+};
+
 // where子句的条件相关结构体
 struct cmpdata{
     enum DATATYPE type;
@@ -146,6 +161,11 @@ void free_delete_struct(struct delete_struct *);
 int update_data(struct update_struct *);
 void free_update_struct(struct update_struct *);
 void free_update_results(struct result *);
+
+int select_data(struct select_struct *);
+void free_select_struct(struct select_struct *);
+void free_select_columns(struct column *);
+void free_select_tables(struct table *);
 
 int evaluate_condition(struct record *, struct condition *, int *);
 int evaluate_comparison(struct record *, struct condition *, int *);

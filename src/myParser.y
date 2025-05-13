@@ -18,6 +18,9 @@
     struct delete_struct *delete_var;           // delete语句的值
     struct result *results;                     // 需要修改成的结果
     struct update_struct *update_var;           // update语句的值
+    struct table *select_tables;                // select语句挑选的表
+    struct column *select_columns;              // select语句挑选的列
+    struct select_struct *select_var;           // select语句的值
 }
 
 %token <str_val> IDENTIFIER NUMBER 
@@ -34,6 +37,9 @@
 %type <delete_var> delete_sql
 %type <results> results result
 %type <update_var> update_sql
+%type <select_tables> tables
+%type <select_columns> fields field
+%type <select_var> select_sql
 
 %token NOT_EQUAL '=' '<' '>' ';' ',' '(' ')' GREATER_OR_EQUAL LESS_OR_EQUAL '.'
 %token SINGLE_QUOTE STAR KW_CHAR KW_INT KW_CREATE KW_TABLE KW_DATABASE KW_DATABASES
@@ -163,7 +169,18 @@ statement   :   create_sql
                 }
             |   select_sql
                 {
-
+                    int result = select_data($1);
+                    if(result == 1)
+                        printf("数据打印完毕\n");
+                    else if(result == 2)
+                        printf("表不存在\n");
+                    else if(result == 3)
+                        printf("请进入数据库进行查询\n");
+                    else if(result == 4)
+                        printf("列不存在\n");
+                    else
+                        printf("查询数据失败\n");
+                    free_select_struct($1);
                 }
             |   delete_sql
                 {
@@ -373,24 +390,71 @@ value       :   SINGLE_QUOTE IDENTIFIER SINGLE_QUOTE
 
 select_sql  :   KW_SELECT STAR KW_FROM tables where_clause ';'                                  
                 {
-
+                    $$ = (struct select_struct*)malloc(sizeof(struct select_struct));
+                    $$->columns = NULL;
+                    $$->tables = $4;
+                    $$->conditions = $5;
                 }
             |   KW_SELECT fields KW_FROM tables where_clause ';'                                
                 {
-
+                    $$ = (struct select_struct*)malloc(sizeof(struct select_struct));
+                    $$->columns = $2;
+                    $$->tables = $4;
+                    $$->conditions = $5;
                 }
             ;
 
 tables      :   IDENTIFIER
+                {
+                    $$ = (struct table*)malloc(sizeof(struct table));
+                    $$->table_name = strdup($1);
+                    $$->next_table = NULL;
+                }
             |   tables ',' IDENTIFIER
+                {
+                    struct table *new_table = (struct table*)malloc(sizeof(struct table));
+                    new_table->table_name = strdup($3);
+                    new_table->next_table = NULL;
+                    if(!$1) $$ = new_table;
+                    else{
+                        struct table *last = $1;
+                        while(last->next_table) last = last->next_table;
+                        last->next_table = new_table;
+                        $$ = $1;
+                    }
+                }
             ;
 
 fields      :   field
+                {
+                    $$ = $1;
+                }
             |   fields ',' field
+                {
+                    if(!$1) $$ = $3;
+                    else{
+                        struct column *last = $1;
+                        while(last->next_column)   last = last->next_column;
+                        last->next_column = $3;
+                        $$ = $1;
+                    }
+                }
             ;
 
 field       :   IDENTIFIER
+                {
+                    $$ = (struct column*)malloc(sizeof(struct column));
+                    $$->table_name = NULL;
+                    $$->column_name = strdup($1);
+                    $$->next_column = NULL;
+                }
             |   IDENTIFIER '.' IDENTIFIER
+                {
+                    $$ = (struct column*)malloc(sizeof(struct column));
+                    $$->table_name = strdup($1);
+                    $$->column_name = strdup($3);
+                    $$->next_column = NULL;
+                }
             ;
 
 delete_sql  :   KW_DELETE KW_FROM IDENTIFIER where_clause ';'                                   
