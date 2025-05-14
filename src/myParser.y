@@ -295,10 +295,10 @@ show_sql    :   KW_SHOW KW_DATABASES ';'
                 }
             ;
 
-use_sql     :   KW_USE KW_DATABASE IDENTIFIER ';'
+use_sql     :   KW_USE IDENTIFIER ';'
                 {
                     $$ = (struct use_struct*)malloc(sizeof(struct use_struct));
-                    $$->db_name = strdup($3);
+                    $$->db_name = strdup($2);
                 }
 
 drop_sql    :   KW_DROP KW_DATABASE IDENTIFIER ';'
