@@ -1113,7 +1113,6 @@ int select_data(struct select_struct *select_var){
     }
     else{   // 多表查询
         // 不同于单表查询、delete、update、insert操作的一行一行处理，而需要对多张表的数据做笛卡尔积得到临时表
-        // 故采取struct record **temp_table保存临时表，temp_table[i]指向临时表的第i行
         // 最后对于临时表做逐行where筛选并逐行打印
         // 此时需要一个新的结构体来存储临时表
         struct data_row{
@@ -1132,7 +1131,7 @@ int select_data(struct select_struct *select_var){
             datafile_fp = fopen(datafile_path, "r");
             if(!datafile_fp){   // 表不存在
                 fclose(sysdat_fp);
-                fclose(datafile_fp);
+                if(datafile_fp) close(datafile_fp);
                 return 2;
             }
             if(!fgets(line, sizeof(line), datafile_fp)) is_blank = TRUE;    // 有表为空
